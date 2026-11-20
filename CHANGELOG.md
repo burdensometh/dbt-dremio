@@ -2,6 +2,8 @@
 
 ## Changes
 
+- Seeds are now loaded in bounded batches instead of one statement holding every CSV row. Batches are split by row count (`seed_batch_size`, default 10000) and by the UTF-8 byte size of the statement (`seed_batch_max_bytes`, default 1 MiB), so a large CSV no longer builds a request larger than Dremio accepts. Quoted values, multi-byte text, `NULL`s and empty strings are emitted exactly as before; a single row that cannot fit the byte ceiling fails the seed and names the offending row and column rather than being truncated.
+- Batched seeds are staged in `<alias>__dbt_seed_candidate` and only published to the target once every batch has loaded and the candidate holds the expected row count. A failure part-way through leaves the previous seed in place, so downstream models never see a partial load.
 - Updated dbt-dremio to match dbt-core v1.11
 - Updated the unit test materialization to the new `get_expected_sql` signature and quoted expected column names (dbt-core 1.11)
 - CI now runs on Python 3.11; the adapter requires Python >= 3.10 (required by dbt-core 1.11)

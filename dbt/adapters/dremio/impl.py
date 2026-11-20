@@ -17,6 +17,13 @@ from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.dremio import DremioConnectionManager
 from dbt.adapters.dremio.column import DremioColumn
 from dbt.adapters.dremio.relation import DremioRelation
+from dbt.adapters.dremio.seed import (
+    DEFAULT_SEED_BATCH_SIZE,
+    DEFAULT_SEED_MAX_BYTES,
+    plan_seed_batches,
+    sql_bytes,
+)
+from typing import Any
 from typing import Dict
 
 from typing import List
@@ -66,6 +73,41 @@ class DremioAdapter(SQLAdapter):
     @classmethod
     def date_function(cls):
         return "current_date"
+
+    # Seed loading helpers ---------------------------------------------------
+    #
+    # The seed materialization renders each CSV row once (same literals as the
+    # legacy single-statement path) and asks the adapter to group those rows.
+    # Doing the byte accounting in Python keeps the statement size known
+    # exactly instead of estimating it from a row count.
+
+    @available
+    def sql_bytes(self, text: Any) -> int:
+        """UTF-8 size of a rendered SQL fragment, for seed batch accounting."""
+        return sql_bytes(text)
+
+    @available
+    def plan_seed_batches(
+        self,
+        rendered_rows: List[str],
+        column_names: List[str],
+        row_limit: Any = None,
+        max_bytes: Any = None,
+        seed_name: str = "seed",
+        statement_prefixes: Optional[List[str]] = None,
+        statement_suffixes: Optional[List[str]] = None,
+        row_values: Optional[List[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        return plan_seed_batches(
+            rendered_rows=rendered_rows,
+            column_names=column_names,
+            row_limit=DEFAULT_SEED_BATCH_SIZE if row_limit is None else row_limit,
+            max_bytes=DEFAULT_SEED_MAX_BYTES if max_bytes is None else max_bytes,
+            seed_name=seed_name,
+            statement_prefixes=statement_prefixes,
+            statement_suffixes=statement_suffixes,
+            row_values=row_values,
+        )
 
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):
